@@ -1,0 +1,46 @@
+pipeline {
+    agent any
+
+    environment {
+        GIT_REPO_URL = 'https://github.com/Ayna27/nginx_test1.git'
+        GIT_BRANCH = 'main'
+        EC2_IP = '34.232.52.42'
+        SSH_CREDENTIALS_ID = '195a7e58-b7fa-4bb6-9b7a-eeb9c26af124'  
+        LOCAL_FILE_PATH = 'index.nginx-debian.html'  
+        REMOTE_DIRECTORY = '/var/www/html'
+        REMOTE_FILE_PATH = "${REMOTE_DIRECTORY}/index.nginx-debian.html"
+        DEPLOY_DIRECTORY = '/var/www/html'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: "${GIT_BRANCH}", url: "${GIT_REPO_URL}"
+            }
+        }
+
+        stage('Deploy to EC2') {
+            steps {
+                script {
+                    // Create temporary directory on EC2 and deploy index.html
+                    sshagent([SSH_CREDENTIALS_ID]) {
+                        sh """
+                            scp -o StrictHostKeyChecking=no ${LOCAL_FILE_PATH} ubuntu@${EC2_IP}:${REMOTE_FILE_PATH}
+                            ssh -o StrictHostKeyChecking=no ubuntu@${EC2_IP} << EOF
+                                sudo mkdir -p ${DEPLOY_DIRECTORY}
+                                sudo mv ${REMOTE_FILE_PATH} ${DEPLOY_DIRECTORY}/index.nginx-debian.html
+                                sudo systemctl restart nginx
+                            EOF
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline complete.'
+        }
+    }
+}
